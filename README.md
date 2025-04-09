@@ -1,4 +1,4 @@
-# flutter_weather_app_blog_part1
+# flutter_weather_app_blog
 
 A new Flutter project.
 
