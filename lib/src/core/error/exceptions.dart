@@ -43,7 +43,9 @@ class LocationPermissionDeniedException extends LocationException {
 }
 
 /// Exception für Fehler beim Geocoding (kommt in Teil 4)
-// class GeocodingException extends AppException { ... }
+class GeocodingException extends AppException { 
+  GeocodingException(super.message, [super.stackTrace]);
+}
 
 /// Exception für Fehler beim Parsen von Daten (z.B. JSON).
 class DataParsingException extends AppException {

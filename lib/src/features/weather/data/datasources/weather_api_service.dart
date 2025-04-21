@@ -3,6 +3,7 @@ import 'dart:convert';      // Für json.decode
 import 'dart:async';       // Für TimeoutException
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:riverpod/riverpod.dart'; // Für Ref und Provider
 
 import 'package:flutter_weather_app_blog/src/core/constants/app_constants.dart'; // Erstellen wir gleich
 import 'package:flutter_weather_app_blog/src/core/error/exceptions.dart';
@@ -16,7 +17,7 @@ final _log = AppLogger.getLogger('WeatherApiService');
 
 // Stellt den WeatherApiService über Riverpod bereit
 @riverpod
-WeatherApiService weatherApiService(WeatherApiServiceRef ref) {
+WeatherApiService weatherApiService(Ref ref) {
   // Nutzt den httpClient Provider aus dem Core Layer
   return WeatherApiService(ref.watch(httpClientProvider));
 }

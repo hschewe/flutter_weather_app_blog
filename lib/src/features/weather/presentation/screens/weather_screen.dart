@@ -9,6 +9,7 @@ import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/cu
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/providers/weather_providers.dart'; // Unser Notifier Provider
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/current_temperature_display.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/location_header.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/search_bar.dart';
 
 final _log = AppLogger.getLogger('WeatherScreen');
 
@@ -21,6 +22,8 @@ class WeatherScreen extends ConsumerStatefulWidget {
 }
 
 class _WeatherScreenState extends ConsumerState<WeatherScreen> {
+  // Controller für das Suchfeld 
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -37,6 +40,13 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
         ref.read(weatherNotifierProvider.notifier).fetchWeatherForCurrentLocation();
       }
     });
+  }
+
+  // Controller im dispose aufräumen
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   /// Zeigt eine kurze Nachricht am unteren Bildschirmrand an.
@@ -101,7 +111,14 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
            // Löse den Refresh aus
            ref.read(weatherNotifierProvider.notifier).refreshWeatherData();
         };
-    } // Andere Fehler (ServerFailure, UnknownFailure) haben erstmal keine Standardaktion
+    } else if (failure is GeocodingFailure) { 
+         icon = Icons.wrong_location_outlined;
+         message = failure.message; // Nutze die spezifische Nachricht
+         // Keine Standard-Aktion, Nutzer muss neue Suche starten
+         actionLabel = null;
+         onActionPressed = null;
+    } 
+    // Andere Fehler (ServerFailure, UnknownFailure) haben erstmal keine Standardaktion
 
     return Center(
       key: const ValueKey('error_widget'), // Key für AnimatedSwitcher
@@ -114,10 +131,10 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
             const SizedBox(height: 16),
             Text(
               'Ups, etwas ist schiefgelaufen!',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Theme.of(context).colorScheme.error,
               ),
-               textAlign: TextAlign.center,
+              textAlign: TextAlign.center,
             ),
              const SizedBox(height: 8),
             Text(
@@ -174,7 +191,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                    ],
                  ),
                // Ladeindikator darüber legen
-               Container(color: Colors.black.withOpacity(0.1)), // Leichtes Overlay
+               Container(color: Colors.black.withAlpha((0.1*255).toInt())), // Leichtes Overlay
                const CircularProgressIndicator(),
              ],
            );
@@ -217,11 +234,22 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
     // ref.watch: Hört auf Änderungen im weatherNotifierProvider.
     // Wenn sich der State ändert, wird dieses build-Widget neu ausgeführt!
     final weatherState = ref.watch(weatherNotifierProvider);
+    // Holt den Notifier für Aktionsaufrufe
+    final weatherNotifier = ref.read(weatherNotifierProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meine Wetter App'),
         actions: [
+           // Button für aktuellen Standort 
+           IconButton(
+             icon: const Icon(Icons.my_location),
+             tooltip: 'Mein Standort',
+             onPressed: weatherState.status == WeatherStatus.loading ? null : () {
+                _log.info('Screen: "Mein Standort"-Button gedrückt.');
+                weatherNotifier.fetchWeatherForCurrentLocation();
+             },
+           ),
            // Refresh-Button
            IconButton(
               icon: const Icon(Icons.refresh),
@@ -238,19 +266,53 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
             ),
         ],
       ),
-      // RefreshIndicator: Ermöglicht "Pull-to-Refresh"
-      body: RefreshIndicator(
-        onRefresh: () async {
-           _log.info('Screen: Pull-to-Refresh ausgelöst.');
-           // Rufe die refresh-Methode im Notifier auf.
-           // Das 'await' wartet, bis der Ladevorgang (im Notifier) abgeschlossen ist.
-           await ref.read(weatherNotifierProvider.notifier).refreshWeatherData();
-        },
-        // AnimatedSwitcher sorgt für weiche Übergänge zwischen Lade-/Erfolgs-/Fehlerzuständen
-        child: AnimatedSwitcher(
-           duration: const Duration(milliseconds: 400), // Dauer der Animation
-           child: _buildContent(weatherState), // Ruft die Methode auf, die den Inhalt baut
-        ),
+      // Body ist jetzt eine Column, um Suchleiste und Rest unterzubringen
+      body: Column(children: [
+          // Suchleiste
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: SearchBarWidget(
+              controller: _searchController,
+              isLoading: weatherState.status == WeatherStatus.loading,
+              onSearch: (query) {
+                 if (query.trim().isNotEmpty) {
+                    _log.info('Screen: Suche ausgelöst für "$query"');
+                    FocusScope.of(context).unfocus(); // Tastatur einklappen
+                    weatherNotifier.fetchWeatherForAddress(query);
+                    // Optional: Feld leeren?
+                    // _searchController.clear();
+                 } else {
+                    _showSnackbar("Bitte einen Ort oder eine Adresse eingeben.");
+                 }
+              },
+            ),
+          ),
+          // Aktueller Ort (unverändert)
+           Padding(
+             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+             child: LocationHeader(
+               locationName: weatherState.selectedLocation?.displayName,
+               // Zeige Laden nur, wenn noch *nie* ein Ort geladen wurde
+               isLoading: weatherState.status == WeatherStatus.loading && weatherState.selectedLocation == null,
+             ),
+           ),
+          // Hauptinhalt (Wetter, Ladeanzeige, Fehler)
+          Expanded( // Nimmt den Rest des Platzes ein
+            child:   RefreshIndicator(
+              onRefresh: () async {
+                _log.info('Screen: Pull-to-Refresh ausgelöst.');
+                // Rufe die refresh-Methode im Notifier auf.
+                // Das 'await' wartet, bis der Ladevorgang (im Notifier) abgeschlossen ist.
+                await ref.read(weatherNotifierProvider.notifier).refreshWeatherData();
+              },
+              // AnimatedSwitcher sorgt für weiche Übergänge zwischen Lade-/Erfolgs-/Fehlerzuständen
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400), // Dauer der Animation
+                child: _buildContent(weatherState), // Ruft die Methode auf, die den Inhalt baut
+              ), 
+            ),
+          ),
+        ], 
       ),
     );
   }

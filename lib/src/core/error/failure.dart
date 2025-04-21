@@ -35,8 +35,10 @@ class PermissionFailure extends Failure {
   const PermissionFailure(super.message);
 }
 
-/// Fehler beim Geocoding (Teil 4).
-// class GeocodingFailure extends Failure { ... }
+/// Fehler beim Geocoding.
+class GeocodingFailure extends Failure { 
+  const GeocodingFailure(super.message);
+}
 
 /// Allgemeiner, unerwarteter Fehler.
 class UnknownFailure extends Failure {

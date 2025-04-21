@@ -10,7 +10,9 @@ import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/lo
 import 'package:flutter_weather_app_blog/src/features/weather/domain/repositories/weather_repository.dart';
 import 'package:fpdart/fpdart.dart'; // Für Either
 import 'package:geolocator/geolocator.dart' hide LocationServiceDisabledException; // Für Position
+import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:riverpod/riverpod.dart'; // Für Ref und Provider
 
 part 'weather_repository_impl.g.dart'; // Wird generiert
 
@@ -18,7 +20,7 @@ final _log = AppLogger.getLogger('WeatherRepositoryImpl');
 
 // Stellt die Repository-Implementierung über Riverpod bereit
 @riverpod
-WeatherRepository weatherRepository(WeatherRepositoryRef ref) {
+WeatherRepository weatherRepository(Ref ref) {
   // Das Repository bekommt die Services, die es braucht, über 'ref.watch'
   return WeatherRepositoryImpl(
     ref.watch(weatherApiServiceProvider), // Holt den API Service
@@ -125,4 +127,36 @@ class WeatherRepositoryImpl implements WeatherRepository {
        return Left(UnknownFailure(e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, LocationInfo>> getCoordinatesForAddress(String address) async {
+     _log.fine('Repo: getCoordinatesForAddress für "$address"');
+     try {
+       // Rufe den LocationService auf
+       final geocoding.Location location = await _locationService.getCoordinatesFromAddress(address);
+
+       // Optional: Versuche, den Namen für die Anzeige zu verfeinern
+       final refinedDisplayNameResult = await getLocationDisplayName(location.latitude, location.longitude);
+       // Nimm den verfeinerten Namen, oder die ursprüngliche Suche als Fallback
+       final displayName = refinedDisplayNameResult.fold(
+            (failure) => address, // Bei Fehler nimm die ursprüngliche Suche
+            (name) => name // Bei Erfolg nimm den gefundenen Namen
+       );
+
+       final locationInfo = LocationInfo(
+         latitude: location.latitude,
+         longitude: location.longitude,
+         displayName: displayName,
+       );
+       _log.info('Repo: Koordinaten für "$address" gefunden und gemappt: ${locationInfo.displayName}');
+       return Right(locationInfo);
+
+     } on GeocodingException catch (e, s) { // Spezifischen Geocoding-Fehler fangen
+         _log.warning('Repo: Geocoding Fehler für "$address".', e, s);
+         return Left(GeocodingFailure(e.message)); // Als GeocodingFailure zurückgeben
+     } catch (e, s) { // Andere unerwartete Fehler
+        _log.severe('Repo: Unerwarteter Fehler bei getCoordinatesForAddress für "$address"', e, s);
+        return Left(UnknownFailure('Fehler bei der Adresssuche: ${e.toString()}'));
+     }
+   }
 }

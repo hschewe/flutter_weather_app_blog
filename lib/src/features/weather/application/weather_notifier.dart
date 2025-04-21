@@ -65,6 +65,40 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
     );
   }
 
+/// Holt Wetterdaten für eine eingegebene Adresse. Neu für Teil 4!
+  Future<void> fetchWeatherForAddress(String address) async {
+    _log.info('Notifier: fetchWeatherForAddress gestartet für "$address".');
+    if (address.trim().isEmpty) {
+        _log.warning("Notifier: Leere Adresse übergeben.");
+        // Optional: Zeige dem User einen Fehler oder ignoriere es einfach
+        // state = state.copyWith(status: WeatherStatus.failure, error: GeocodingFailure("Bitte eine Adresse eingeben."));
+        return;
+    }
+    if (state.status == WeatherStatus.loading) {
+       _log.fine('Notifier: Ladevorgang läuft bereits, ignoriere Aufruf für "$address".');
+       return;
+    }
+    state = state.copyWith(status: WeatherStatus.loading, clearError: true);
+
+    // 1. Adresse in Koordinaten umwandeln lassen
+    final geocodingResult = await _weatherRepository.getCoordinatesForAddress(address);
+
+    // 2. Ergebnis behandeln
+    await geocodingResult.fold(
+      // Fehlerfall (z.B. Adresse nicht gefunden)
+      (failure) async {
+        _log.warning('Notifier: Fehler beim Geocoding für "$address": $failure');
+        state = state.copyWith(status: WeatherStatus.failure, error: failure);
+      },
+      // Erfolgsfall (Koordinaten gefunden)
+      (locationInfo) async {
+        _log.info('Notifier: Koordinaten für "$address" erfolgreich erhalten.');
+        // 3. Wetterdaten für diese Koordinaten holen (nutzt die bestehende Methode!)
+        await _fetchWeatherDataAndUpdateState(locationInfo);
+      },
+    );
+  }
+
   /// Interne Hilfsmethode: Holt Wetterdaten für einen gegebenen Ort und aktualisiert den State.
   Future<void> _fetchWeatherDataAndUpdateState(LocationInfo locationInfo) async {
     _log.fine('Notifier: Rufe Wetterdaten ab für: ${locationInfo.displayName}');
@@ -102,16 +136,23 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
     );
   }
 
-  /// Aktualisiert die Wetterdaten für den aktuell ausgewählten Ort (vereinfacht für Teil 3).
+  /// Aktualisiert die Wetterdaten für den aktuell ausgewählten Ort (angepasst für Teil 4).
   Future<void> refreshWeatherData() async {
     _log.info('Notifier: refreshWeatherData aufgerufen');
-    // In Teil 3 gibt es nur "Mein Standort", also rufen wir einfach dessen Funktion auf.
-    // Später wird hier der `state.selectedLocation` verwendet.
-     if (state.status == WeatherStatus.loading) return; // Nicht refreshen, wenn schon lädt
-    await fetchWeatherForCurrentLocation();
-  }
+      // Prüfe, ob überhaupt ein Ort ausgewählt ist
+    final currentLocation = state.selectedLocation;
+    if (currentLocation == null) {
+      _log.warning('Notifier: Refresh aufgerufen, aber kein Ort ausgewählt. Lade GPS als Fallback.');
+      await fetchWeatherForCurrentLocation();
+      return;
+    }
+     if (state.status == WeatherStatus.loading) return;
 
-  // fetchWeatherForAddress kommt in Teil 4
+     // Ladezustand setzen (aber alte Daten behalten)
+     state = state.copyWith(status: WeatherStatus.loading, clearError: true);
+     // Nutze den gespeicherten Ort im State für den Refresh!
+    await _fetchWeatherDataAndUpdateState(currentLocation);
+  }
 
   /// Öffnet die App-Einstellungen (nützlich bei permanent verweigerten Berechtigungen).
   /// Greift auf den LocationService zu (muss dafür ggf. injiziert werden oder über Repo gehen).

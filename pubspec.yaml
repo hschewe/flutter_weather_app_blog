@@ -1,5 +1,5 @@
 name: flutter_weather_app_blog
-description: "A new Flutter project."
+description: "Eine Wetter-App, Schritt für Schritt im Blog erstellt."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -37,6 +37,7 @@ dependencies:
   # Für State Management (Zustandsverwaltung der App)
   flutter_riverpod: ^2.6.1 # Version prüfen
   riverpod_annotation: ^2.6.1 # Version prüfen (für Code-Generierung)  
+  riverpod: ^2.6.1 # Version prüfen (für Code-Generierung)
 
   # Für Standort (GPS, Berechtigungen)
   geolocator: ^13.0.4 # Version prüfen
@@ -55,6 +56,9 @@ dependencies:
 
   # Version prüfen (für funktionale Programmierung)
   fpdart: ^1.1.1 
+
+  # Geocoding (Umwandlung von Adressen in Koordinaten und umgekehrt)
+  geocoding: ^3.0.0 # 
 
 dev_dependencies:
   flutter_test:

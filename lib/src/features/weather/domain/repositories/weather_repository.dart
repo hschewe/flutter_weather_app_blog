@@ -13,13 +13,13 @@ abstract class WeatherRepository {
   Future<Either<Failure, CurrentWeatherData>> getWeatherForLocation(LocationInfo location);
 
   /// Holt den Anzeigenamen für gegebene Koordinaten (Reverse Geocoding).
-  /// Nützlich, um aus Lat/Lon "Berlin" zu machen (kommt in Teil 4).
   Future<Either<Failure, String>> getLocationDisplayName(double latitude, double longitude);
 
   /// Holt die Koordinaten für den aktuellen Gerätestandort (GPS).
   Future<Either<Failure, LocationInfo>> getCurrentLocationCoordinates();
 
-  // --- Operationen für spätere Teile ---
-  // Future<Either<Failure, LocationInfo>> getCoordinatesForAddress(String address); // Kommt in Teil 4
+  /// Holt die Koordinaten für eine gegebene Adresse.
+  Future<Either<Failure, LocationInfo>> getCoordinatesForAddress(String address);
+  
   // Future<Either<Failure, FullWeatherData>> getFullWeather(...) // Für Diagramm/GTS
 }
