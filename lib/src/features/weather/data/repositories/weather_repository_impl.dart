@@ -5,7 +5,8 @@ import 'package:flutter_weather_app_blog/src/core/error/failure.dart';
 import 'package:flutter_weather_app_blog/src/core/location/location_service.dart';
 import 'package:flutter_weather_app_blog/src/core/utils/logger.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/data/datasources/weather_api_service.dart';
-import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/current_weather_data.dart';
+// Ersetze CurrentWeatherData durch WeatherData
+import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/weather_data.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/location_info.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/domain/repositories/weather_repository.dart';
 import 'package:fpdart/fpdart.dart'; // Für Either
@@ -13,6 +14,7 @@ import 'package:geolocator/geolocator.dart' hide LocationServiceDisabledExceptio
 import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:riverpod/riverpod.dart'; // Für Ref und Provider
+import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/chart_point.dart';
 
 part 'weather_repository_impl.g.dart'; // Wird generiert
 
@@ -36,31 +38,49 @@ class WeatherRepositoryImpl implements WeatherRepository {
   WeatherRepositoryImpl(this._apiService, this._locationService);
 
   @override
-  Future<Either<Failure, CurrentWeatherData>> getWeatherForLocation(LocationInfo location) async {
+  Future<Either<Failure, WeatherData>> getWeatherForLocation(LocationInfo location) async {
     _log.fine('Repo: getWeatherForLocation für ${location.displayName}');
     try {
-      // Rufe die API-Methode auf
-      final forecastResponse = await _apiService.getCurrentWeather(
+      // Rufe jetzt getForecastWeather auf, um auch stündliche Daten zu bekommen
+      final forecastResponse = await _apiService.getForecastWeather(
         latitude: location.latitude,
         longitude: location.longitude,
+        // pastDays und forecastDays werden im Service mit Defaults belegt
       );
 
-      // Extrahiere die relevanten Daten aus der API-Antwort
-      final current = forecastResponse.currentWeather;
-      if (current?.time == null || current?.temperature.isNaN == true) {
-        _log.warning('Unvollständige oder ungültige Wetterdaten von API erhalten.');
-        return Left(ServerFailure('Unvollständige Wetterdaten erhalten.'));
+      // Aktuelle Temperatur und Zeit
+      final currentTemp = forecastResponse.currentWeather?.temperature ?? double.nan;
+      final lastUpdated = forecastResponse.currentWeather?.time;
+      // Stündliche Daten für Chart aufbereiten
+      List<ChartPoint> hourlyPoints = [];
+      if (forecastResponse.hourly != null &&
+          forecastResponse.hourly!.time.isNotEmpty &&
+          forecastResponse.hourly!.time.length == forecastResponse.hourly!.temperature2m.length) {
+        for (int i = 0; i < forecastResponse.hourly!.time.length; i++) {
+          final time = forecastResponse.hourly!.time[i];
+          final temp = forecastResponse.hourly!.temperature2m[i];
+          // Nur gültige Punkte hinzufügen (Temperatur nicht NaN)
+          if (!temp.isNaN) {
+            hourlyPoints.add(ChartPoint(time: time, temperature: temp));
+          } else {
+            _log.finest('Repo: Überspringe NaN Stundenwert bei ${time.toIso8601String()} für ${location.displayName}');
+          }
+        }
+      } else {
+        _log.warning('Repo: Keine oder inkonsistente stündliche Daten für ${location.displayName} erhalten.');
       }
 
-      // Wandle das API-Modell in unser App-Entity um
-      final weatherData = CurrentWeatherData(
-        temperature: current!.temperature,
-        lastUpdatedTime: current.time!, // Wir haben oben auf null geprüft
+      // Erstelle das umfassende WeatherData Objekt
+      final weatherData = WeatherData(
+        currentTemperature: currentTemp,
+        lastUpdatedTime: lastUpdated,
+        hourlyForecast: hourlyPoints,
+        // greenlandTemperatureSum wird in Teil 6 hinzugefügt
       );
 
-      _log.info('Wetterdaten erfolgreich geholt und gemappt für ${location.displayName}');
-      return Right(weatherData); // Erfolg zurückgeben
-
+      _log.info('Wetterdaten (inkl. stündlich) erfolgreich geholt und gemappt für ${location.displayName}');
+      return Right(weatherData);
+      
     } on NetworkException catch (e, s) { // Netzwerkfehler abfangen
       _log.warning('Repo: Netzwerkfehler bei getWeather', e, s);
       return Left(NetworkFailure()); // Als NetworkFailure weitergeben

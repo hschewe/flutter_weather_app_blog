@@ -5,7 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:riverpod/riverpod.dart'; // Für Ref und Provider
 
-import 'package:flutter_weather_app_blog/src/core/constants/app_constants.dart'; // Erstellen wir gleich
+// AppConstants sind hier nicht mehr direkt nötig, da URLs im Service sind
+// import 'package:flutter_weather_app_blog/src/core/constants/app_constants.dart';
 import 'package:flutter_weather_app_blog/src/core/error/exceptions.dart';
 import 'package:flutter_weather_app_blog/src/core/networking/http_client.dart'; // Generiert
 import 'package:flutter_weather_app_blog/src/core/utils/logger.dart';
@@ -29,18 +30,24 @@ class WeatherApiService {
 
   WeatherApiService(this._client);
 
-  /// Ruft aktuelle Wetterdaten von Open-Meteo ab (vereinfacht für Teil 3).
-  Future<ForecastResponseModel> getCurrentWeather({
+  /// Ruft aktuelle Wetterdaten UND stündlichen Verlauf/Prognose ab. Umbenannt und erweitert!
+  Future<ForecastResponseModel> getForecastWeather({
     required double latitude,
     required double longitude,
+    int pastDays = 7,      // Standardmäßig 7 Tage Vergangenheit
+    int forecastDays = 7,  // Standardmäßig 7 Tage Zukunft
   }) async {
-    _log.fine('getCurrentWeather API call für Lat: $latitude, Lon: $longitude');
-    // Parameter für die API-Anfrage
+    _log.fine('getForecastWeather API call für Lat: $latitude, Lon: $longitude, Past: $pastDays, Forecast: $forecastDays');
     final queryParameters = {
-      'latitude': latitude.toStringAsFixed(6), // API braucht String, 6 Nachkommastellen sind gut
+      'latitude': latitude.toStringAsFixed(6),
       'longitude': longitude.toStringAsFixed(6),
-      'current_weather': 'true', // Wir wollen nur die aktuellen Daten
-      'timezone': 'auto',       // API soll Zeitzone automatisch erkennen
+      'current_weather': 'true',
+      // NEU: Stündliche Temperatur anfordern
+      'hourly': 'temperature_2m',
+      // NEU: Zeitraum für stündliche Daten
+      'past_days': pastDays.toString(),
+      'forecast_days': forecastDays.toString(),
+      'timezone': 'auto',
     };
 
     // Baue die vollständige URL zusammen
@@ -54,7 +61,8 @@ class WeatherApiService {
 
     try {
       // Sende die GET-Anfrage mit Timeout
-      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+      // Timeout ggf. etwas erhöhen, da mehr Daten geladen werden
+      final response = await _client.get(uri).timeout(const Duration(seconds: 15));
 
       _log.finer('API Response Status Code: ${response.statusCode}');
       // _log.finest('API Response Body: ${response.body}'); // Nur zum Debuggen aktivieren!
@@ -105,6 +113,5 @@ class WeatherApiService {
     }
   }
 
-   // getForecast (mit hourly etc.) kommt in Teil 5
    // getHistoricalDailyTemperatures kommt in Teil 6
 }

@@ -19,7 +19,8 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
   // Startet mit dem initialen Zustand.
   WeatherNotifier(this._weatherRepository /*, this._locationService */) : super(WeatherState.initial());
 
-  /// Hauptmethode für Teil 3: Holt Koordinaten und dann Wetterdaten.
+  // fetchWeatherForCurrentLocation (unverändert in der Logik, da _fetchWeatherDataAndUpdateState
+  // jetzt mit WeatherData umgeht)
   Future<void> fetchWeatherForCurrentLocation() async {
     _log.info('Notifier: fetchWeatherForCurrentLocation gestartet.');
     // Verhindere doppelte Ausführung, wenn schon geladen wird
@@ -37,35 +38,15 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
     // coordinatesResult ist ein Either<Failure, LocationInfo>
     // fold: Führt die linke Funktion bei Fehler (Left), die rechte bei Erfolg (Right) aus.
     await coordinatesResult.fold(
-      // Fehlerfall (linke Seite)
-      (failure) async {
-        _log.warning('Notifier: Fehler beim Holen der GPS-Koordinaten: $failure');
-        // Setze Zustand auf 'failure' mit dem Fehlerobjekt
-        state = state.copyWith(status: WeatherStatus.failure, error: failure);
-      },
-      // Erfolgsfall (rechte Seite)
+      (failure) async => state = state.copyWith(status: WeatherStatus.failure, error: failure),
       (locationInfo) async {
-        _log.info('Notifier: GPS-Koordinaten erfolgreich erhalten.');
-
-        // Optional: Versuche, den Anzeigenamen zu verfeinern (Reverse Geocoding)
-        // In Teil 3 ist das noch nicht implementiert, daher wird es den Standardnamen nicht ändern.
-        final displayNameResult = await _weatherRepository.getLocationDisplayName(
-          locationInfo.latitude, locationInfo.longitude,
-        );
-
-        // Nutze den verfeinerten Namen, wenn verfügbar, sonst den Standardnamen
-        final finalLocationInfo = displayNameResult.fold(
-           (failure) => locationInfo, // Bei Fehler alten Namen behalten
-           (displayName) => locationInfo.copyWith(displayName: displayName)
-        );
-
-        // 2. Wenn Koordinaten da sind, hole die Wetterdaten dafür
+        final displayNameResult = await _weatherRepository.getLocationDisplayName(locationInfo.latitude, locationInfo.longitude);
+        final finalLocationInfo = displayNameResult.fold((l) => locationInfo, (name) => locationInfo.copyWith(displayName: name));
         await _fetchWeatherDataAndUpdateState(finalLocationInfo);
       },
-    );
-  }
+    );  }
 
-/// Holt Wetterdaten für eine eingegebene Adresse. Neu für Teil 4!
+/// Holt Wetterdaten für eine eingegebene Adresse.
   Future<void> fetchWeatherForAddress(String address) async {
     _log.info('Notifier: fetchWeatherForAddress gestartet für "$address".');
     if (address.trim().isEmpty) {
@@ -108,7 +89,7 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
 
     final weatherResult = await _weatherRepository.getWeatherForLocation(locationInfo);
 
-    // weatherResult ist ein Either<Failure, CurrentWeatherData>
+    // weatherResult ist ein Either<Failure, weatherData>
     weatherResult.fold(
       // Fehlerfall
       (failure) {
@@ -119,16 +100,16 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
           status: WeatherStatus.failure,
           error: failure,
           // Die alten Wetterdaten könnten wir löschen oder behalten, Geschmackssache.
-          // currentWeatherData: CurrentWeatherData.empty,
+          // weatherData: WeatherData.empty,
         );
       },
       // Erfolgsfall
-      (weatherData) {
+      (data) { // 'data' ist jetzt vom Typ WeatherData
         _log.info('Notifier: Wetterdaten erfolgreich erhalten für ${locationInfo.displayName}');
         // Setze Zustand auf 'success', speichere die Daten und den Ort, lösche Fehler.
         state = state.copyWith(
           status: WeatherStatus.success,
-          currentWeatherData: weatherData,
+          weatherData: data, // Hier wird das WeatherData-Objekt gespeichert
           selectedLocation: locationInfo,
           clearError: true, // Fehler löschen bei Erfolg
         );

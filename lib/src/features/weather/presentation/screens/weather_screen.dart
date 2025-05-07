@@ -5,11 +5,12 @@ import 'package:flutter_weather_app_blog/src/core/error/failure.dart';
 import 'package:flutter_weather_app_blog/src/core/location/location_service.dart'; // Für den Provider
 import 'package:flutter_weather_app_blog/src/core/utils/logger.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/application/weather_state.dart';
-import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/current_weather_data.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/weather_data.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/providers/weather_providers.dart'; // Unser Notifier Provider
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/current_temperature_display.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/location_header.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/search_bar.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/temperature_chart.dart';
 
 final _log = AppLogger.getLogger('WeatherScreen');
 
@@ -164,7 +165,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
   Widget _buildContent(WeatherState state) {
     // Verwende den Status als Key für den AnimatedSwitcher,
     // damit er Änderungen erkennt.
-    final key = ValueKey(state.status);
+    final key = ValueKey('${state.status}-${state.selectedLocation?.displayName ?? 'no_location'}');
 
     switch (state.status) {
       case WeatherStatus.initial:
@@ -173,23 +174,12 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
 
       case WeatherStatus.loading:
         // Wenn schon Daten da sind (beim Refresh), zeige sie im Hintergrund weiter an.
-        if (state.selectedLocation != null && state.currentWeatherData != CurrentWeatherData.empty) {
+        if (state.selectedLocation != null && state.weatherData != WeatherData.empty) {
           return Stack(
              key: key,
              alignment: Alignment.center,
              children: [
-               // Alte Daten anzeigen
-               Column(
-                   mainAxisAlignment: MainAxisAlignment.center,
-                   children: [
-                     LocationHeader(locationName: state.selectedLocation!.displayName),
-                     const SizedBox(height: 20),
-                     CurrentTemperatureDisplay(
-                       temperature: state.currentWeatherData.temperature,
-                       lastUpdated: state.currentWeatherData.lastUpdatedTime,
-                     ),
-                   ],
-                 ),
+               _buildSuccessContent(state.weatherData), // Bestehende Daten
                // Ladeindikator darüber legen
                Container(color: Colors.black.withAlpha((0.1*255).toInt())), // Leichtes Overlay
                const CircularProgressIndicator(),
@@ -203,20 +193,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
       case WeatherStatus.success:
         // Zeige die erfolgreichen Daten an
         if (state.selectedLocation != null) {
-          return Center(
-            child: Column( // Zentriert die Elemente vertikal
-              key: key,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                LocationHeader(locationName: state.selectedLocation!.displayName),
-                const SizedBox(height: 20), // Abstand
-                CurrentTemperatureDisplay(
-                  temperature: state.currentWeatherData.temperature,
-                  lastUpdated: state.currentWeatherData.lastUpdatedTime,
-                ),
-              ],
-            )
-          );
+          return _buildSuccessContent(state.weatherData, key: key);
         } else {
             // Sollte nicht passieren, aber sicher ist sicher
             _log.severe('Screen: Erfolgsstatus, aber selectedLocation ist null.');
@@ -229,6 +206,41 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
     }
   }
 
+  /// Hilfsmethode, um den Inhalt bei Erfolgszustand (und beim Laden mit alten Daten) zu bauen.
+  Widget _buildSuccessContent(WeatherData data, {Key? key}) {
+    // ListView für Scrollbarkeit, falls der Inhalt zu groß wird
+    return ListView(
+      key: key,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      children: [
+        // Aktuelle Temperatur (nutzt jetzt data.currentTemperature etc.)
+        CurrentTemperatureDisplay(
+          temperature: data.currentTemperature,
+          lastUpdated: data.lastUpdatedTime,
+        ),
+        const SizedBox(height: 24), // Mehr Abstand
+
+        // Überschrift für das Diagramm
+        Text(
+          'Temperaturverlauf & Prognose',
+          style: Theme.of(context).textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 10),
+
+        // Das Temperaturdiagramm
+        SizedBox(
+          height: 250, // Feste Höhe für das Diagramm
+          child: TemperatureChart(
+             chartData: data.hourlyForecast, // Übergib die stündlichen Daten
+          )
+        ),
+        const SizedBox(height: 20), // Abstand am Ende
+      ],
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     // ref.watch: Hört auf Änderungen im weatherNotifierProvider.
@@ -239,7 +251,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meine Wetter App'),
+        title: const Text('Flutter Wetter App'),
         actions: [
            // Button für aktuellen Standort 
            IconButton(

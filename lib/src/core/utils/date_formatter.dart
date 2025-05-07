@@ -5,14 +5,44 @@ class DateFormatter {
   // Format für die Anzeige der Uhrzeit (z.B. für aktuelle Wetterdaten)
   static final timeFormat = DateFormat('HH:mm');
 
-  // Format für API-Anfragen (YYYY-MM-DD) - wird später gebraucht
-  // static final apiDateFormat = DateFormat('yyyy-MM-dd');
+  // Format für API-Anfragen (YYYY-MM-DD)
+  static final apiDateFormat = DateFormat('yyyy-MM-dd');
+
+  // Format für die Anzeige von Datum und Uhrzeit im Chart-Tooltip
+  static final chartTooltipFormat = DateFormat('dd.MM. HH:mm');
+
+  // Format für die Anzeige von Tagen auf der X-Achse des Charts
+  static final chartAxisDayFormat = DateFormat('E dd.MM', 'de_DE'); // z.B. Mo 15.07.
 
   static String formatTime(DateTime date) {
     try {
       return timeFormat.format(date.toLocal()); // Wichtig: Lokale Zeit anzeigen
     } catch (e) {
       return '--:--'; // Fallback bei Fehler
+    }
+  }
+
+  static String formatApiDate(DateTime date) {
+    try {
+      return apiDateFormat.format(date);
+    } catch (e) {
+      return '0000-00-00'; // Fallback
+    }
+  }
+
+  static String formatChartTooltip(DateTime date) {
+    try {
+      return chartTooltipFormat.format(date.toLocal());
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  }
+
+  static String formatChartAxisDay(DateTime date) {
+     try {
+      return chartAxisDayFormat.format(date.toLocal());
+    } catch (e) {
+      return 'Err';
     }
   }
 

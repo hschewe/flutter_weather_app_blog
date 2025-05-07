@@ -1,9 +1,8 @@
 // lib/src/features/weather/data/models/forecast_response_model.dart
 import 'package:flutter_weather_app_blog/src/core/error/exceptions.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/data/models/current_weather_model.dart';
-// Hourly/Daily Models kommen später
-// import 'package:flutter_weather_app_blog/src/features/weather/data/models/hourly_data_model.dart';
-// import 'package:flutter_weather_app_blog/src/features/weather/data/models/hourly_units_model.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/data/models/hourly_data_model.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/data/models/hourly_units_model.dart';
 
 /// Bildet die GESAMTE JSON-Antwort der Open-Meteo Forecast API ab.
 class ForecastResponseModel {
@@ -16,9 +15,8 @@ class ForecastResponseModel {
   final double? elevation; // Nullable machen
   // Enthält das aktuelle Wetter, falls angefordert und vorhanden
   final CurrentWeatherModel? currentWeather;
-  // Hourly/Daily kommen später dazu
-  // final HourlyUnitsModel? hourlyUnits;
-  // final HourlyDataModel? hourly;
+  final HourlyUnitsModel? hourlyUnits;
+  final HourlyDataModel? hourly;
 
   ForecastResponseModel({
     required this.latitude,
@@ -29,8 +27,8 @@ class ForecastResponseModel {
     this.timezoneAbbreviation,
     this.elevation,
     this.currentWeather,
-    // this.hourlyUnits,
-    // this.hourly,
+    this.hourlyUnits,
+    this.hourly,
   });
 
   factory ForecastResponseModel.fromJson(Map<String, dynamic> json) {
@@ -54,7 +52,13 @@ class ForecastResponseModel {
       final current = json.containsKey('current_weather') && json['current_weather'] is Map<String, dynamic>
           ? CurrentWeatherModel.fromJson(json['current_weather'])
           : null;
-      // Parsing für hourly/daily kommt später
+      // Stündliche Daten parsen, falls vorhanden
+      final units = json.containsKey('hourly_units') && json['hourly_units'] is Map<String, dynamic>
+          ? HourlyUnitsModel.fromJson(json['hourly_units'])
+          : null;
+      final data = json.containsKey('hourly') && json['hourly'] is Map<String, dynamic>
+          ? HourlyDataModel.fromJson(json['hourly'])
+          : null;
 
       return ForecastResponseModel(
         latitude: lat.toDouble(),
@@ -65,8 +69,8 @@ class ForecastResponseModel {
         timezoneAbbreviation: tzAbbr,
         elevation: elev,
         currentWeather: current,
-        // hourlyUnits: ..., // Später
-        // hourly: ..., // Später
+        hourlyUnits: units, 
+        hourly: data, 
       );
    } catch (e, s) {
        // Fange Parsing-Fehler von Untermodellen oder eigene FormatExceptions
@@ -85,8 +89,8 @@ class ForecastResponseModel {
       'timezone_abbreviation': timezoneAbbreviation,
       'elevation': elevation,
       'current_weather': currentWeather?.toJson(),
-      // 'hourly_units': hourlyUnits?.toJson(), // Später
-      // 'hourly': hourly?.toJson(), // Später
+      'hourly_units': hourlyUnits?.toJson(), 
+      'hourly': hourly?.toJson(), 
     };
   }
 }
