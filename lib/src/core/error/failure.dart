@@ -44,3 +44,8 @@ class GeocodingFailure extends Failure {
 class UnknownFailure extends Failure {
   const UnknownFailure(String details) : super("Ein unerwarteter Fehler ist aufgetreten: $details");
 }
+
+/// Fehler bei der GTS-Berechnung.
+class GtsFailure extends Failure {
+  const GtsFailure(super.message);
+}

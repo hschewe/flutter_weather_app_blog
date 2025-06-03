@@ -11,6 +11,8 @@ import 'package:flutter_weather_app_blog/src/core/error/exceptions.dart';
 import 'package:flutter_weather_app_blog/src/core/networking/http_client.dart'; // Generiert
 import 'package:flutter_weather_app_blog/src/core/utils/logger.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/data/models/forecast_response_model.dart';
+import 'package:flutter_weather_app_blog/src/core/constants/app_constants.dart'; // Für Archive API URLs
+import 'package:flutter_weather_app_blog/src/features/weather/data/models/historical_response_model.dart'; 
 
 part 'weather_api_service.g.dart'; // Wird generiert
 
@@ -42,9 +44,7 @@ class WeatherApiService {
       'latitude': latitude.toStringAsFixed(6),
       'longitude': longitude.toStringAsFixed(6),
       'current_weather': 'true',
-      // NEU: Stündliche Temperatur anfordern
       'hourly': 'temperature_2m',
-      // NEU: Zeitraum für stündliche Daten
       'past_days': pastDays.toString(),
       'forecast_days': forecastDays.toString(),
       'timezone': 'auto',
@@ -113,5 +113,71 @@ class WeatherApiService {
     }
   }
 
-   // getHistoricalDailyTemperatures kommt in Teil 6
+  Future<HistoricalResponseModel> getHistoricalDailyTemperatures({
+    required double latitude,
+    required double longitude,
+    required String startDate, // Format YYYY-MM-DD
+    required String endDate,   // Format YYYY-MM-DD
+  }) async {
+     _log.fine('getHistoricalDailyTemperatures API call für Lat: $latitude, Lon: $longitude, von $startDate bis $endDate');
+     final queryParameters = {
+      'latitude': latitude.toStringAsFixed(6),
+      'longitude': longitude.toStringAsFixed(6),
+      'start_date': startDate,
+      'end_date': endDate,
+      'daily': 'temperature_2m_mean', // Tägliche Durchschnittstemperatur
+      'timezone': 'auto', // Wichtig für korrekte Tagesgrenzen
+    };
+
+    // Nutze die Konstanten für die Archiv-API
+    final uri = Uri.https(
+      AppConstants.openMeteoArchiveApiBaseUrl,
+      AppConstants.openMeteoArchiveEndpoint,
+      queryParameters,
+    );
+
+    _log.finer('API Request URI (Archiv): $uri');
+
+    try {
+      // Etwas längeres Timeout für potenziell größere Archivdaten
+      final response = await _client.get(uri).timeout(const Duration(seconds: 20));
+      _log.finer('API Response Status Code (Archiv): ${response.statusCode}');
+
+       if (response.statusCode == 200) {
+        try {
+          final Map<String, dynamic> jsonResponse = json.decode(response.body);
+           if (jsonResponse.containsKey('error') && jsonResponse['error'] == true) {
+             final reason = jsonResponse['reason'] ?? 'Unbekannter API Fehler (Archiv)';
+             _log.severe('API Fehler im JSON zurückgegeben (Archiv): $reason');
+             throw ApiException(reason, statusCode: response.statusCode);
+          }
+          return HistoricalResponseModel.fromJson(jsonResponse);
+        } on FormatException catch (e, s) {
+            _log.severe('Fehler beim Dekodieren der Historical API Antwort (JSON ungültig)', e, s);
+            throw DataParsingException('Ungültiges JSON von der Wetter-Archiv-API erhalten.', s);
+        } on DataParsingException {
+            rethrow;
+        } catch (e, s) {
+           _log.severe('Unerwarteter Fehler beim Parsen der Historical API Antwort', e, s);
+           throw DataParsingException('Antwort der Wetter-Archiv-API konnte nicht verarbeitet werden.', s);
+        }
+      } else {
+        _log.severe('API Fehler (Archiv): Status Code ${response.statusCode}, Body: ${response.body}');
+        throw ApiException(
+          'Fehler von der Wetter-Archiv-API (Status: ${response.statusCode}).',
+          statusCode: response.statusCode
+        );
+      }
+    } on http.ClientException catch (e, s) {
+      _log.severe('Netzwerkfehler beim Abrufen der historischen Daten', e, s);
+      throw NetworkException('Netzwerkfehler: ${e.message}', s);
+    } on TimeoutException catch (e, s) {
+       _log.warning('Timeout beim Abrufen der historischen Daten', e, s);
+       throw NetworkException('Zeitüberschreitung bei der Wetter-Archiv-API Anfrage.', s);
+    } catch (e, s) {
+       if (e is AppException) rethrow;
+       _log.severe('Unerwarteter Fehler in getHistoricalDailyTemperatures', e, s);
+       throw ApiException('Ein unerwarteter Fehler ist aufgetreten: ${e.runtimeType}', stackTrace: s);
+    }
+  }   
 }

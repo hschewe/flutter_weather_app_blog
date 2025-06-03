@@ -42,7 +42,7 @@ class LocationPermissionDeniedException extends LocationException {
               : "Standortberechtigung verweigert.");
 }
 
-/// Exception für Fehler beim Geocoding (kommt in Teil 4)
+/// Exception für Fehler beim Geocoding 
 class GeocodingException extends AppException { 
   GeocodingException(super.message, [super.stackTrace]);
 }
@@ -52,4 +52,7 @@ class DataParsingException extends AppException {
   DataParsingException(super.message, [super.stackTrace]);
 }
 
-// GtsCalculationException kommt in Teil 6
+/// Exception für Fehler bei der GTS-Berechnung.
+class GtsCalculationException extends AppException {
+  GtsCalculationException(super.message, [super.stackTrace]);
+}

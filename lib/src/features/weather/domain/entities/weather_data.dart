@@ -8,14 +8,14 @@ class WeatherData extends Equatable {
   final DateTime? lastUpdatedTime; // Zeit der aktuellen Temperatur (kann fehlen)
   final List<ChartPoint> hourlyForecast; // Kombinierte Vergangenheit & Zukunft für Chart
 
-  // GTS wird in Teil 6 hinzugefügt
-  // final double greenlandTemperatureSum;
+  // NEU: Grünlandtemperatursumme
+  final double greenlandTemperatureSum;
 
   const WeatherData({
     required this.currentTemperature,
     this.lastUpdatedTime,
     required this.hourlyForecast,
-    // required this.greenlandTemperatureSum,
+    required this.greenlandTemperatureSum,
   });
 
   @override
@@ -23,7 +23,7 @@ class WeatherData extends Equatable {
         currentTemperature,
         lastUpdatedTime,
         hourlyForecast,
-        // greenlandTemperatureSum,
+        greenlandTemperatureSum,
       ];
 
   // Leerer Zustand für Initialisierung
@@ -31,7 +31,7 @@ class WeatherData extends Equatable {
     currentTemperature: double.nan,
     lastUpdatedTime: null,
     hourlyForecast: const [], // Leere Liste für den Chart
-    // greenlandTemperatureSum: double.nan,
+    greenlandTemperatureSum: double.nan,
   );
 
   // Hilfsmethode für das Kopieren und Ändern des Zustands
@@ -40,13 +40,13 @@ class WeatherData extends Equatable {
     DateTime? lastUpdatedTime,
     bool setLastUpdatedTimeToNull = false,
     List<ChartPoint>? hourlyForecast,
-    // double? greenlandTemperatureSum,
+    double? greenlandTemperatureSum,
   }) {
     return WeatherData(
       currentTemperature: currentTemperature ?? this.currentTemperature,
       lastUpdatedTime: setLastUpdatedTimeToNull ? null : (lastUpdatedTime ?? this.lastUpdatedTime),
       hourlyForecast: hourlyForecast ?? this.hourlyForecast,
-      // greenlandTemperatureSum: greenlandTemperatureSum ?? this.greenlandTemperatureSum,
+      greenlandTemperatureSum: greenlandTemperatureSum ?? this.greenlandTemperatureSum,
     );
   }
 }

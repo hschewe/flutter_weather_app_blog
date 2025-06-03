@@ -11,6 +11,7 @@ import 'package:flutter_weather_app_blog/src/features/weather/presentation/widge
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/location_header.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/search_bar.dart';
 import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/temperature_chart.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/presentation/widgets/gts_display.dart';
 
 final _log = AppLogger.getLogger('WeatherScreen');
 
@@ -219,6 +220,10 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
           lastUpdated: data.lastUpdatedTime,
         ),
         const SizedBox(height: 24), // Mehr Abstand
+
+        // NEU: GTS-Anzeige hinzufügen
+        GtsDisplay(gtsValue: data.greenlandTemperatureSum),
+        const SizedBox(height: 20), // Abstand vor dem Diagramm
 
         // Überschrift für das Diagramm
         Text(

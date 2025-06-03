@@ -15,6 +15,7 @@ import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:riverpod/riverpod.dart'; // Für Ref und Provider
 import 'package:flutter_weather_app_blog/src/features/weather/domain/entities/chart_point.dart';
+import 'package:flutter_weather_app_blog/src/features/weather/application/gts_calculator_service.dart'; 
 
 part 'weather_repository_impl.g.dart'; // Wird generiert
 
@@ -27,6 +28,7 @@ WeatherRepository weatherRepository(Ref ref) {
   return WeatherRepositoryImpl(
     ref.watch(weatherApiServiceProvider), // Holt den API Service
     ref.watch(locationServiceProvider),   // Holt den Location Service
+    ref.watch(gtsCalculatorServiceProvider), // Holt den GTS Calculator Service
   );
 }
 
@@ -34,19 +36,32 @@ WeatherRepository weatherRepository(Ref ref) {
 class WeatherRepositoryImpl implements WeatherRepository {
   final WeatherApiService _apiService;
   final LocationService _locationService;
+  final GtsCalculatorService _gtsCalculatorService;
 
-  WeatherRepositoryImpl(this._apiService, this._locationService);
+  WeatherRepositoryImpl(this._apiService, this._locationService, this._gtsCalculatorService);
 
   @override
   Future<Either<Failure, WeatherData>> getWeatherForLocation(LocationInfo location) async {
     _log.fine('Repo: getWeatherForLocation für ${location.displayName}');
     try {
       // Rufe jetzt getForecastWeather auf, um auch stündliche Daten zu bekommen
-      final forecastResponse = await _apiService.getForecastWeather(
+      final forecastFuture = _apiService.getForecastWeather(
         latitude: location.latitude,
         longitude: location.longitude,
-        // pastDays und forecastDays werden im Service mit Defaults belegt
       );
+
+      // Parallel dazu GTS-Berechnung starten
+      final gtsFuture = _gtsCalculatorService.calculateGtsForLocation(location)
+          .catchError((e, s) { // Fehler bei GTS-Berechnung abfangen
+        _log.severe('Repo: Fehler bei der GTS-Berechnung für ${location.displayName}', e, s);
+        // Bei Fehler NaN zurückgeben, damit der Rest der Daten trotzdem angezeigt werden kann
+        return double.nan;
+      });
+
+      // Auf beide Ergebnisse warten
+      final forecastResponse = await forecastFuture;
+      final gtsValue = await gtsFuture ;
+
 
       // Aktuelle Temperatur und Zeit
       final currentTemp = forecastResponse.currentWeather?.temperature ?? double.nan;
@@ -75,12 +90,15 @@ class WeatherRepositoryImpl implements WeatherRepository {
         currentTemperature: currentTemp,
         lastUpdatedTime: lastUpdated,
         hourlyForecast: hourlyPoints,
-        // greenlandTemperatureSum wird in Teil 6 hinzugefügt
+        greenlandTemperatureSum: gtsValue, // GTS-Wert für Grünlandtemperatursumme
       );
 
       _log.info('Wetterdaten (inkl. stündlich) erfolgreich geholt und gemappt für ${location.displayName}');
       return Right(weatherData);
       
+    } on GtsCalculationException catch (e, s) { // Spezifischer Fehler für GTS
+       _log.severe('Repo: Fehler in der GTS-Berechnung abgefangen.', e, s);
+       return Left(GtsFailure(e.message));       
     } on NetworkException catch (e, s) { // Netzwerkfehler abfangen
       _log.warning('Repo: Netzwerkfehler bei getWeather', e, s);
       return Left(NetworkFailure()); // Als NetworkFailure weitergeben
